@@ -3,7 +3,10 @@
 A non-official WorkWeChat SDK in Pythonic Python.
 
 非官方 Python 企业微信SDK 。
-(懒，实现接口不完整，需要在加了。)
+
+懒，实现接口不完整，需要再加了。
+
+
 
 
 特点：
@@ -20,6 +23,14 @@ A non-official WorkWeChat SDK in Pythonic Python.
 通过 [pipenv](https://pipenv.kennethreitz.org/) 安装 WorkWeChatSDK
 
     pipenv install WorkWeChatSDK
+
+
+
+注意：
+
+官方文档中「通过 corpid、 corpidsecret 生成 access_token」，
+corpsecret 其实是 自建或内置应用(agent) 对应的 Secret，起这个歧义名字会误导用户以为 corpidsecret 跟 corpid 对应；
+因为 应用可以有多个，所以 corpidsecret 在不同的上下文应用中，可能是不同的值。
 
 
 例子：创建自定义讨论群组
