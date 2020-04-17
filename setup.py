@@ -4,7 +4,7 @@ except ImportError:
     from distutils.core import setup
 
 setup(
-    name='WorkWeChat',
+    name='WorkWeChatSDK',
     version='20200416',
     packages=['work_wechat'],
     url='https://github.com/tonytony2020/WorkWeChatSDK',
