@@ -14,7 +14,7 @@ A non-official WorkWeChat SDK in Pythonic Python.
  - Pythonic
    - 没有异常就是 Keep It Simple Stupid ： 比如获取某个讨论组不存在的时候，返回 None 而不是抛出异常；
    - 可自定义官方接口 errcode 哪些情况抛出异常，哪些不抛出，具体见 SDK 中 `appchat_get` 函数实现；
-   - 非写/修改类操作，默认空返回表示成功
+   - 写/修改类操作，默认空返回表示成功；读类操作，默认返回空表示找不到相关资源对象；
  - 函数和参数命名尽可能和官方接口一直，比如 通讯录 创建成员 "/user/create" 对应 SDK 函数为 "user_create"；
 
 
