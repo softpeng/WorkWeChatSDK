@@ -116,6 +116,27 @@ class WorkWeChat(object):
             expires_in=rs["expires_in"],
         )
 
+    def get_api_domain_ip(self) -> typing.List[str]:
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/92520
+        """
+
+        rs = self._send_req(
+            method="GET",
+            path="/get_api_domain_ip",
+        )
+        """
+        {
+            "ip_list":[
+                "182.254.11.176",
+                "182.254.78.66"
+            ],
+            "errcode":0,
+            "errmsg":"ok"
+        }
+        """
+        return rs["ip_list"]
+
     def appchat_get(self, chatid: str) -> typing.Optional[dict]:
         """
         https://work.weixin.qq.com/api/doc/90000/90135/90247
