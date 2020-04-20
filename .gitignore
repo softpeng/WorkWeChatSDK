@@ -129,6 +129,7 @@ dmypy.json
 .pyre/
 
 # temporary files
+ignore/
 ignores/
 cfg.py
 .idea/

@@ -13,9 +13,14 @@ class ErrCode:
     SUCCESS = 0
 
     INVALID_USERID_LIST = 40031
+    INVALID_PARTY_LIST = 40066
+    API_FORBIDDEN = 48002
+
     DEPARTMENT_NOT_FOUND = 60003
     NO_PRIVILEGE_TO_ACCESS_OR_MODIFY = 60011
+    USERID_EXISTED = 60102
     USERID_NOT_FOUND = 60111
+    INVALID_NAME = 60112
 
     CHATID_INVALID = 86001
     CHATID_EXISTED = 86215
@@ -29,6 +34,13 @@ class WorkWeChatException(Exception):
 
     def __str__(self) -> str:
         return "%s" % self.rs
+
+
+class QrCodeSizeType(object):
+    SMALL = 1  # 171x171
+    MEDIUM = 2  # 399x399
+    LARGE = 3  # 741x741
+    EXTRA_LARGE = 4  # 2052x2052
 
 
 class WorkWeChat(object):
@@ -84,6 +96,7 @@ class WorkWeChat(object):
         if self._verbose:
             logging.debug("%s %s" % (method, url))
         r = requests.request(method=method, url=url, timeout=self._http_timeout, data=data_post)
+        assert r.status_code == 200, r.headers
         rs = r.json()
         if rs["errcode"] not in errcodes_accepted:
             raise WorkWeChatException(errcode=rs["errcode"], errmsg=rs["errmsg"], rs=rs)
@@ -255,21 +268,6 @@ class WorkWeChat(object):
          }
 
         """
-
-    def user_simplelist(
-            self,
-            department_id: int,
-            fetch_child: bool = False
-    ) -> typing.Optional[typing.List[dict]]:
-        """
-        https://work.weixin.qq.com/api/doc/90000/90135/90200
-        """
-        data = dict(
-            department_id=department_id,
-            fetch_child=int(fetch_child),
-        )
-        rs = self._send_req(method="GET", path="/user/simplelist", params_qs=data)
-        return rs["userlist"]
 
     def webhook_send(
             self,
@@ -450,4 +448,381 @@ class WorkWeChat(object):
             }
         }        
         """
+        rs = copy.deepcopy(rs)
+        for i in (
+                "errcode",
+                "errmsg",
+        ):
+            rs.pop(i)
         return rs
+
+    def user_create(
+            self,
+            userid: str,
+            name: str,
+            department: typing.List[int],
+            is_leader_in_dept: typing.List[int],
+            mobile: str = None,
+            email: str = None,
+            **kwargs
+    ):
+        """
+        注意：
+        1.需要修改 管理工具-通讯录同步-权限 「只读」为「编辑」 https://work.weixin.qq.com/wework_admin/frame#apps/contactsApi；
+        2. 截止 2020-04-20 文档 https://work.weixin.qq.com/api/doc/90000/90135/90195 中 department 和 is_leader_in_dept 参数为非必填，实际是必填。
+
+        https://work.weixin.qq.com/api/doc/90000/90135/90195
+        """
+        assert mobile or email
+        assert len(department) == len(is_leader_in_dept)
+
+        params_post = dict(
+            userid=userid,
+            name=name,
+            department=department,
+            is_leader_in_dept=is_leader_in_dept,
+        )
+        if mobile:
+            params_post["mobile"] = mobile
+        if email:
+            params_post["email"] = email
+        params_post.update(**kwargs)
+
+        errcodes_accepted = (ErrCode.SUCCESS, ErrCode.USERID_EXISTED)
+
+        self._send_req(
+            method="POST",
+            path="/user/create",
+            params_post=params_post,
+            errcodes_accepted=errcodes_accepted,
+        )
+        """
+        {
+           "errcode": 0,
+           "errmsg": "created"
+        }
+        """
+
+    def user_update(self, userid: str, **kwargs):
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/90197
+        """
+        params_post = dict(
+            userid=userid,
+        )
+        params_post.update(**kwargs)
+        self._send_req(
+            method="POST",
+            path="/user/update",
+            params_post=params_post,
+        )
+        """
+        {
+           "errcode": 0,
+           "errmsg": "updated"
+        }        
+        """
+
+    def user_delete(self, userid: str):
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/90198
+        """
+        params_qs = dict(
+            userid=userid,
+        )
+        self._send_req(
+            method="GET",
+            path="/user/delete",
+            params_qs=params_qs,
+        )
+        """
+        {
+           "errcode": 0,
+           "errmsg": "deleted"
+        }
+        """
+
+    def user_batchdelete(self, useridlist: typing.List[str]):
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/90199
+        """
+        params_post = dict(
+            useridlist=useridlist,
+        )
+        self._send_req(
+            method="POST",
+            path="/user/batchdelete",
+            params_post=params_post,
+        )
+        """
+        {
+           "errcode": 0,
+           "errmsg": "deleted"
+        }
+        """
+
+    def user_simplelist(
+            self,
+            department_id: int,
+            fetch_child: bool = False
+    ) -> typing.Optional[typing.List[dict]]:
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/90200
+        """
+        data = dict(
+            department_id=department_id,
+            fetch_child=int(fetch_child),
+        )
+        rs = self._send_req(method="GET", path="/user/simplelist", params_qs=data)
+        """
+        {
+           "errcode": 0,
+           "errmsg": "ok",
+           "userlist": [
+                   {
+                          "userid": "zhangsan",
+                          "name": "李四",
+                          "department": [1, 2],
+                          "open_userid": "xxxxxx"
+                   }
+             ]
+        }        
+        """
+        return rs["userlist"]
+
+    def user_list(
+            self,
+            department_id: int,
+            fetch_child: bool = False
+    ) -> typing.Optional[typing.List[dict]]:
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/90201
+        """
+        data = dict(
+            department_id=department_id,
+            fetch_child=int(fetch_child),
+        )
+        rs = self._send_req(method="GET", path="/user/list", params_qs=data)
+        """
+        {
+            "errcode": 0,
+            "errmsg": "ok",
+            "userlist": [{
+                "userid": "zhangsan",
+                "name": "李四",
+                "department": [1, 2],
+                "order": [1, 2],
+                "position": "后台工程师",
+                "mobile": "13800000000",
+                "gender": "1",
+                "email": "zhangsan@gzdev.com",
+                "is_leader_in_dept": [1, 0],
+                "avatar": "http://wx.qlogo.cn/mmopen/ajNVdqHZLLA3WJ6DSZUfiakYe37PKnQhBIeOQBO4czqrnZDS79FH5Wm5m4X69TBicnHFlhiafvDwklOpZeXYQQ2icg/0",
+                "thumb_avatar": "http://wx.qlogo.cn/mmopen/ajNVdqHZLLA3WJ6DSZUfiakYe37PKnQhBIeOQBO4czqrnZDS79FH5Wm5m4X69TBicnHFlhiafvDwklOpZeXYQQ2icg/100",
+                "telephone": "020-123456",
+                "alias": "jackzhang",
+                "status": 1,
+                "address": "广州市海珠区新港中路",
+                "hide_mobile" : 0,
+                "english_name" : "jacky",
+                "open_userid": "xxxxxx",
+                "main_department": 1,
+                "extattr": {
+                    "attrs": [
+                        {
+                            "type": 0,
+                            "name": "文本名称",
+                            "text": {
+                                "value": "文本"
+                            }
+                        },
+                        {
+                            "type": 1,
+                            "name": "网页名称",
+                            "web": {
+                                "url": "http://www.test.com",
+                                "title": "标题"
+                            }
+                        }
+                    ]
+                },
+                "qr_code": "https://open.work.weixin.qq.com/wwopen/userQRCode?vcode=xxx",
+                "external_position": "产品经理",
+                "external_profile": {
+                    "external_corp_name": "企业简称",
+                    "external_attr": [{
+                            "type": 0,
+                            "name": "文本名称",
+                            "text": {
+                                "value": "文本"
+                            }
+                        },
+                        {
+                            "type": 1,
+                            "name": "网页名称",
+                            "web": {
+                                "url": "http://www.test.com",
+                                "title": "标题"
+                            }
+                        },
+                        {
+                            "type": 2,
+                            "name": "测试app",
+                            "miniprogram": {
+                                "appid": "wx8bd80126147dFAKE",
+                                "pagepath": "/index",
+                                "title": "miniprogram"
+                            }
+                        }
+                    ]
+                }
+            }]
+        }
+        """
+        return rs["userlist"]
+
+    def user_convert_to_openid(self, userid: str) -> str:
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/90202
+        """
+        params_qs = dict(
+            userid=userid,
+        )
+        rs = self._send_req(method="POST", path="/user/convert_to_openid", params_qs=params_qs)
+        """
+        {
+           "errcode": 0,
+           "errmsg": "ok",
+           "openid": "oDjGHs-1yCnGrRovBj2yHij5JAAA"
+        }
+        """
+        return rs["openid"]
+
+    def user_convert_to_userid(self, openid: str) -> str:
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/90202
+        """
+        params_qs = dict(
+            openid=openid,
+        )
+        rs = self._send_req(method="POST", path="/user/convert_to_openid", params_qs=params_qs)
+        """
+        {
+           "errcode": 0,
+           "errmsg": "ok",
+           "userid": "zhangsan"
+        }
+        """
+        return rs["userid"]
+
+    def user_authsucc(self, userid: str):
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/90203
+        """
+        params_qs = dict(
+            userid=userid,
+        )
+        self._send_req(method="POST", path="/user/authsucc", params_qs=params_qs)
+        """
+        {
+           "errcode": 0,
+           "errmsg": "ok"
+        }
+        """
+
+    def batch_invite(
+            self,
+            user: typing.List[str] = None,
+            party: typing.List[int] = None,
+            tag: typing.List[str] = None
+    ):
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/90975
+        """
+        maxItem = 1000
+        assert user or party or tag
+
+        params_post = dict()
+        if user:
+            assert len(user) < maxItem
+            params_post["user"] = user
+        if party:
+            assert len(party) < maxItem
+            params_post["party"] = party
+        if tag:
+            assert len(tag) < maxItem
+            params_post["tag"] = tag
+
+        rs = self._send_req(method="POST", path="/batch/invite", params_post=params_post)
+        """
+         {
+           "errcode" : 0,
+           "errmsg" : "ok",
+           "invaliduser" : ["UserID1", "UserID2"],
+           "invalidparty" : [PartyID1, PartyID2],
+           "invalidtag": [TagID1, TagID2]
+         }
+        """
+        rs = copy.deepcopy(rs)
+        for i in (
+                "errcode",
+                "errmsg",
+        ):
+            rs.pop(i)
+        return rs
+
+    def corp_get_join_qrcode(self, size_type: int = None) -> str:
+        """
+        注意：须拥有通讯录的管理权限，使用通讯录同步的Secret。
+
+        https://work.weixin.qq.com/api/doc/90000/90135/91714
+        """
+        params_qs = dict()
+        if size_type:
+            params_qs["size_type"] = size_type
+        rs = self._send_req(method="GET", path="/corp/get_join_qrcode", params_qs=params_qs)
+        """
+        {
+           "errcode": 0,
+           "errmsg": "ok",
+           "join_qrcode": "https://work.weixin.qq.com/wework_admin/genqrcode?action=join&vcode=3db1fab03118ae2aa1544cb9abe84&r=hb_share_api_mjoin&qr_size=3"
+        }
+        """
+        return rs["join_qrcode"]
+
+    def user_get_mobile_hashcode(self, mobile: str, state: str = None) -> str:
+        """
+        注意：仅限自建应用调用。
+        https://work.weixin.qq.com/api/doc/90000/90135/91735
+        """
+        params_post = dict(
+            mobile=mobile,
+        )
+        if state:
+            params_post["state"] = state
+        rs = self._send_req(method="POST", path="/user/get_mobile_hashcode", params_post=params_post)
+        """
+        {
+           "errcode": 0,
+           "errmsg": "ok",
+           "hashcode": "1abcd2xaba3dxab4sdxa"
+        }
+        """
+        return rs["hashcode"]
+
+    def user_get_active_stat(self, date: str) -> int:
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/92714
+        """
+        params_post = dict(
+            date=date,
+        )
+        rs = self._send_req(method="POST", path="/user/get_active_stat", params_post=params_post)
+        """
+        {
+           "errcode": 0,
+           "errmsg": "ok",
+           "active_cnt": 100
+        }
+        """
+        return rs["active_cnt"]
