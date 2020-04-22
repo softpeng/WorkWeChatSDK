@@ -60,10 +60,10 @@ class NewsArticle(LikeDict):
     """ https://work.weixin.qq.com/help?doc_id=13376#图文类型 """
 
     def __init__(self, **kwargs):
-        self.title: typing.Optional[str] = None
-        self.description: typing.Optional[str] = None
-        self.url: typing.Optional[str] = None
-        self.picurl: typing.Optional[str] = None
+        self.title = None
+        self.description = None
+        self.url = None
+        self.picurl = None
         super().__init__(**kwargs)
 
 
