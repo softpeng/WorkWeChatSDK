@@ -8,6 +8,19 @@ import urllib.parse
 import requests
 
 
+class LikeDict(object):
+    def __init__(self, **kwargs):
+        self.update(**kwargs)
+
+    def to_dict(self) -> dict:
+        return dict((k, v) for k, v in self.__dict__.items() if not k.startswith("_"))
+
+    def update(self, **kwargs):
+        for k, v in kwargs.items():
+            if k in self.__dict__:
+                self.__dict__[k] = v
+
+
 class ErrCode:
     ERROR = -1
     SUCCESS = 0
@@ -41,6 +54,17 @@ class QrCodeSizeType(object):
     MEDIUM = 2  # 399x399
     LARGE = 3  # 741x741
     EXTRA_LARGE = 4  # 2052x2052
+
+
+class NewsArticle(LikeDict):
+    """ https://work.weixin.qq.com/help?doc_id=13376#图文类型 """
+
+    def __init__(self, **kwargs):
+        self.title: typing.Optional[str] = None
+        self.description: typing.Optional[str] = None
+        self.url: typing.Optional[str] = None
+        self.picurl: typing.Optional[str] = None
+        super().__init__(**kwargs)
 
 
 class WorkWeChat(object):
@@ -272,7 +296,11 @@ class WorkWeChat(object):
     def webhook_send(
             self,
             key: str,
-            content: str,
+            text_content: str = None,
+            markdown_content: str = None,
+            image_base64: str = None,
+            image_md5: str = None,
+            news_articles: typing.List[NewsArticle] = None,
             mentioned_list: typing.List[str] = None,
             mentioned_mobile_list: typing.List[str] = None,
     ):
@@ -286,19 +314,40 @@ class WorkWeChat(object):
         data_qs = dict(
             key=key,
         )
-        data_post = dict(
-            msgtype="text",
-            text=dict(
-                content=content,
+
+        data_post = dict()
+        if text_content:
+            data_post["msgtype"] = "text"
+            data_post["text"] = dict(
+                content=text_content,
             )
+            if mentioned_list:
+                data_post["text"]["mentioned_list"] = mentioned_list
+            if mentioned_mobile_list:
+                data_post["text"]["mentioned_mobile_list"] = mentioned_mobile_list
+
+        if markdown_content:
+            data_post["msgtype"] = "markdown"
+            data_post["markdown"] = dict(
+                content=markdown_content,
+            )
+        if image_base64 and image_md5:
+            data_post["msgtype"] = "image"
+            data_post["image"] = dict(
+                base64=image_base64,
+                md5=image_md5,
+            )
+        if news_articles:
+            data_post["msgtype"] = "news"
+            data_post["news"] = dict(articles=[i.to_dict() for i in news_articles])
+
+        self._send_req(
+            auto_update_token=False,
+            method="POST",
+            path="/webhook/send",
+            params_qs=data_qs,
+            params_post=data_post,
         )
-
-        if mentioned_list:
-            data_post["text"]["mentioned_list"] = mentioned_list
-        if mentioned_mobile_list:
-            data_post["text"]["mentioned_mobile_list"] = mentioned_mobile_list
-
-        self._send_req(auto_update_token=False, method="POST", path="/webhook/send", params_qs=data_qs, params_post=data_post)
 
     def agent_get(
             self,

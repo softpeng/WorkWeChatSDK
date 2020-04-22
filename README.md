@@ -59,6 +59,7 @@ A non-official WorkWeChat SDK in Pythonic Python.
 
 接口或模块 | 完成状态
 ------------ | -------------
+群机器人 | 已完成
 外部联系人管理 | TBD.
 身份验证 | TBD.
 素材管理 | TBD.
