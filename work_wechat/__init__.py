@@ -4,8 +4,8 @@ import logging
 import time
 import typing
 import urllib.parse
-
 import requests
+import mimetypes
 
 
 class LikeDict(object):
@@ -56,15 +56,120 @@ class QrCodeSizeType(object):
     EXTRA_LARGE = 4  # 2052x2052
 
 
+class MsgType:
+    TEXT = "text"
+    IMAGE = "image"
+
+    FILE = "file"
+    NEWS = "news"
+    VIDEO = "video"
+    VOICE = "voice"
+
+    TEXTCARD = "textcard"
+    MPNEWS = "mpnews"
+    MARKDOWN = "markdown"
+    TASKCARD = "taskcard"
+
+
+MIMETYPE2WWTYPE = {
+    "image/jpeg": "image",
+    "audio/amr": "voice",
+    "video/mp4": "video",
+}
+
+DEFAULT_CONTENT_TYPE = 'file'
+
+
 class NewsArticle(LikeDict):
     """ https://work.weixin.qq.com/help?doc_id=13376#图文类型 """
 
     def __init__(self, **kwargs):
         self.title = None
         self.description = None
+
         self.url = None
         self.picurl = None
+
         super().__init__(**kwargs)
+
+
+class Media(object):
+    """https://work.weixin.qq.com/api/doc/90000/90135/90253#临时媒体类型"""
+
+    def __init__(self, file_name: str, file_data: typing.BinaryIO):
+        self.file_name = file_name
+        self.file_data = file_data
+        self.file_type = mimetypes.guess_type(file_name)[0]
+
+
+class Video(LikeDict):
+    """https://work.weixin.qq.com/api/doc/90000/90135/90236#视频类型"""
+
+    def __init__(self, **kwargs):
+        self.media_id = None
+        self.title = None
+        self.description = None
+
+        super().__init__(**kwargs)
+
+
+class TaskCardBtn(LikeDict):
+    """https://work.weixin.qq.com/api/doc/90000/90135/90253#按键类型"""
+
+    def __init__(self, **kwargs):
+        self.key = None
+        self.name = None
+
+        self.replace_name = None
+        self.color = None
+        self.is_bold = None
+
+        super().__init__(**kwargs)
+
+
+class TextCard(LikeDict):
+    """https://work.weixin.qq.com/api/doc/90000/90135/90236#文本卡片信息"""
+
+    def __init__(self, **kwargs):
+        self.title = None
+        self.description = None
+
+        self.url = None
+        self.btntxt = None
+
+        super().__init__(**kwargs)
+
+
+class TaskCard(LikeDict):
+    """https://work.weixin.qq.com/api/doc/90000/90135/90236#任务卡片信息"""
+
+    def __init__(self, **kwargs):
+        self.title = None
+        self.description = None
+
+        self.url = None
+        self.btn = None
+        self.task_id = None
+
+        super().__init__(**kwargs)
+
+
+class MpNew(LikeDict):
+    """https://work.weixin.qq.com/api/doc/90000/90135/90236#图文信息(mpnews)"""
+
+    def __init__(self, **kwargs):
+        self.title = None
+        self.thumb_media_id = None
+
+        self.author = None
+        self.content_source_url = None
+        self.content = None
+        self.digest = None
+
+        super().__init__(**kwargs)
+
+
+mimetypes.add_type("audio/amr", ".amr")
 
 
 class WorkWeChat(object):
@@ -98,6 +203,7 @@ class WorkWeChat(object):
             path: str,
             params_qs: dict = None,
             params_post: dict = None,
+            params_post_files: typing.Dict[str, typing.Tuple[str, typing.BinaryIO, str]] = None,
             errcodes_accepted: typing.Tuple[int, ...] = None,
             auto_update_token: bool = True,
     ) -> dict:
@@ -119,7 +225,13 @@ class WorkWeChat(object):
 
         if self._verbose:
             logging.debug("%s %s" % (method, url))
-        r = requests.request(method=method, url=url, timeout=self._http_timeout, data=data_post)
+        r = requests.request(
+            method=method,
+            url=url,
+            timeout=self._http_timeout,
+            data=data_post,
+            files=params_post_files
+        )
         assert r.status_code == 200, r.headers
         rs = r.json()
         if rs["errcode"] not in errcodes_accepted:
@@ -875,3 +987,199 @@ class WorkWeChat(object):
         }
         """
         return rs["active_cnt"]
+
+    def media_upload(self, media: Media) -> str:
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/90253
+        """
+        params_qs = dict(type=MIMETYPE2WWTYPE.get(media.file_type, DEFAULT_CONTENT_TYPE))
+
+        """
+        POST https://qyapi.weixin.qq.com/cgi-bin/media/upload?access_token=accesstoken001&type=file HTTP/1.1
+        Content-Type: multipart/form-data; boundary=-------------------------acebdf13572468
+        Content-Length: 220
+        ---------------------------acebdf13572468
+        Content-Disposition: form-data; name="media";filename="wework.txt"; filelength=6
+        Content-Type: application/octet-stream
+        mytext
+        ---------------------------acebdf13572468--
+
+        """
+        files = {
+            "media": (media.file_name, media.file_data, media.file_type)
+        }
+        rs = self._send_req(method="POST", path="/media/upload", params_post_files=files, params_qs=params_qs)
+        """
+        {
+           "errcode": 0,
+           "errmsg": ""，
+           "type": "image",
+           "media_id": "1G6nrLmr5EC3MMb_-zK1dDdzmd0p7cNliYu9V5w7o8K0",
+           "created_at": "1380000000"
+        }
+        """
+
+        return rs['media_id']
+
+    def message_send(
+            self,
+            msgtype: str,
+            agentid: int,
+            content: str = None,
+            media_id: str = None,
+            video: Video = None,
+            textcard: TextCard = None,
+            news_articles: typing.Tuple[NewsArticle, ...] = None,
+            mpnews_articles: typing.Tuple[MpNew, ...] = None,
+            taskcard: TaskCard = None,
+            touser: typing.Tuple[str, ...] = None,
+            toparty: typing.Tuple[str, ...] = None,
+            totag: typing.Tuple[str, ...] = None,
+            safe: int = 0,
+            enable_id_trans: int = 0,
+            enable_duplicate_check: int = 0,
+            duplicate_check_interval: int = 1800
+    ) -> dict:
+
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/90236
+        """
+        data = dict(
+            msgtype=msgtype,
+            agentid=agentid,
+            enable_duplicate_check=enable_duplicate_check,
+            enable_id_trans=enable_id_trans,
+            duplicate_check_interval=duplicate_check_interval,
+            safe=safe
+        )
+
+        object_type_dict = dict(
+            news=news_articles,
+            video=video,
+            textcard=textcard,
+            mpnews=mpnews_articles,
+            taskcard=taskcard
+        )
+
+        if msgtype == MsgType.TEXT or msgtype == MsgType.MARKDOWN:
+            data[msgtype] = dict(content=content)
+        elif msgtype == MsgType.FILE or msgtype == MsgType.IMAGE or msgtype == MsgType.VOICE:
+            data[msgtype] = dict(media_id=media_id)
+        elif msgtype == MsgType.NEWS or msgtype == MsgType.MPNEWS:
+            data[msgtype] = dict(articles=[i.to_dict() for i in object_type_dict[msgtype]])
+        else:
+            data[msgtype] = object_type_dict[msgtype].to_dict()
+
+        if touser:
+            data["touser"] = '|'.join(touser)
+        if toparty:
+            data["toparty"] = '|'.join(toparty)
+        if totag:
+            data["totag"] = '|'.join(totag)
+        """
+        {
+           "touser" : "UserID1|UserID2|UserID3",
+           "toparty" : "PartyID1|PartyID2",
+           "totag" : "TagID1 | TagID2",
+           "msgtype" : "text",
+           "agentid" : 1,
+           "text" : {
+               "content" : "你的快递已到，请携带工卡前往邮件中心领取。\n出发前可查看<a href=\"http://work.weixin.qq.com\">邮件中心视频实况</a>，聪明避开排队。"
+           },
+           "safe":0,
+           "enable_id_trans": 0,
+           "enable_duplicate_check": 0,
+           "duplicate_check_interval": 1800
+        }
+        """
+
+        rs = self._send_req(
+            method="POST",
+            path="/message/send",
+            params_post=data,
+        )
+        """
+         {
+           "errcode" : 0,
+           "errmsg" : "ok",
+           "invaliduser" : "userid1|userid2",
+           "invalidparty" : "partyid1|partyid2",
+           "invalidtag": "tagid1|tagid2"
+         }
+        """
+        rs = copy.deepcopy(rs)
+        for i in (
+                "errcode",
+                "errmsg",
+        ):
+            rs.pop(i)
+        return rs
+
+    def update_taskcard(
+            self,
+            userids: typing.Tuple[str, ...],
+            agentid: int,
+            task_id: str,
+            clicked_key: str
+    ) -> typing.List[str]:
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/91579
+        """
+        params_post = dict(userids=userids, agentid=agentid, task_id=task_id, clicked_key=clicked_key)
+        """
+        {
+            "userids" : ["userid1","userid2"],
+            "agentid" : 1,
+            "task_id": "taskid122",
+            "clicked_key": "btn_key123"
+        }   
+        """
+        rs = self._send_req(
+            method="POST",
+            path="/message/update_taskcard",
+            params_post=params_post
+        )
+        """
+         {
+           "errcode" : 0,
+           "errmsg" : "ok",
+           "invaliduser" : ["userid1","userid2"], // 不区分大小写，返回的列表都统一转为小写
+         }
+        """
+        return rs["invaliduser"]
+
+    def message_get_statistics(self, time_type: int = 0) -> typing.List[dict]:
+        """
+        https://work.weixin.qq.com/api/doc/90000/90135/92369
+        """
+        params_post = dict(time_type=time_type)
+
+        """
+        {
+           "time_type": 0
+        }
+        """
+        rs = self._send_req(
+            method="POST",
+            path="/message/get_statistics",
+            params_post=params_post
+        )
+        """
+        {
+           "errcode" : 0,
+           "errmsg" : "ok",
+           "statistics": [
+               {
+                    "agentid": 1000002,
+                   "app_name": "应用1",
+                   "count": 101
+               }，
+               {
+                   "agentid": 1000003,
+                   "app_name": "应用2",
+                   "count": 102
+               }
+           ]
+        }
+        """
+        return rs["statistics"]

@@ -47,12 +47,12 @@ A non-official WorkWeChat SDK in Pythonic Python.
 
 接口或模块 | 完成状态
 ------------ | -------------
-发送应用消息 | TBD.
-更新任务卡片消息状态 | TBD.
+发送应用消息 | 已完成
+更新任务卡片消息状态 | 已完成
 接收消息与事件 | TBD.
 发送消息到群聊会话 | 已完成
 互联企业消息推送 | TBD.
-查询应用消息发送统计 | TBD.
+查询应用消息发送统计 | 已完成
 
 
 其他
@@ -148,6 +148,36 @@ corpsecret 其实是 自建或内置应用(agent) 对应的 Secret，起这个�
         # errcode 和 errmsg 分别对应接口响应中字段，ex.rs 为完整 HTTP response
         print(ex.errcode, ex.errmsg, ex.rs)
 
+例子：发送图文信息(https://work.weixin.qq.com/api/doc/90000/90135/90236)
+
+    import os
+
+    import work_wechat
+    
+    corpid = os.environ.get("CORPID")
+    corpsecret = os.environ.get("CORPSECRET")
+    agentid = os.environ.get("agentid")
+
+    news_articles1 = work_wechat.NewsArticle(
+        picurl="http://wwcdn.weixin.qq.com/node/wwnl/wwnl/style/images/independent/favicon/favicon_48h$c976bd14.png",
+        title="图文信息发送测试",
+        url="https://work.weixin.qq.com/api/doc/90000/90135/90236#文本消息",
+        description="详情"
+    )
+
+    touser = ('Jense',)
+    ww.message_send(agentid=agentid, msgtype="news", touser=touser, news_articles=(news_articles1))
+    
+    
+例子： 发送文本信息(https://work.weixin.qq.com/api/doc/90000/90135/90236)
+    
+    text_content = """ 你的快递已到，请携带工卡前往邮件中心领取。
+                   \n出发前可查看<a href=\"http://work.weixin.qq.com\">邮件中心视频实况</a>，聪明避开排队。"""
+
+    touser = ("Jense",)
+    ww.message_send(agentid=agentid, content=text_content, touser=touser, msgtype="text")
+
+    
 
 
 其他例子见目录 examples/ .
