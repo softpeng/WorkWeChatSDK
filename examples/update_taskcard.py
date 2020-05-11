@@ -5,7 +5,7 @@ import work_wechat
 
 corpid = os.environ.get("CORPID")
 corpsecret = os.environ.get("CORPSECRET")
-agentid = int(os.environ.get("agentid"))
+agentid = int(os.environ.get("AGENTID"))
 
 ww = work_wechat.WorkWeChat(corpid=corpid, corpsecret=corpsecret)
 

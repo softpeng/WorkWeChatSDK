@@ -169,6 +169,11 @@ class MpNew(LikeDict):
         super().__init__(**kwargs)
 
 
+class TimeType:
+    TODAY = 0
+    YESTERDAY = 1
+
+
 mimetypes.add_type("audio/amr", ".amr")
 
 
@@ -724,7 +729,7 @@ class WorkWeChat(object):
 
     def user_simplelist(
             self,
-            department_id: int,
+            department_id: str,
             fetch_child: bool = False
     ) -> typing.Optional[typing.List[dict]]:
         """
