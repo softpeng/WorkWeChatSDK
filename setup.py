@@ -5,7 +5,7 @@ except ImportError:
 
 setup(
     name='WorkWeChatSDK',
-    version='20200423',
+    version='20200430',
     packages=['work_wechat'],
     url='https://github.com/tonytony2020/WorkWeChatSDK',
     license='The MIT License',
@@ -20,5 +20,5 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.5',
 )
