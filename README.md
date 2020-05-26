@@ -181,3 +181,12 @@ corpsecret 其实是 自建或内置应用(agent) 对应的 Secret，起这个�
 
 
 其他例子见目录 examples/ .
+
+
+## 如何贡献
+
+遵循以下 Coding Style  
+https://gist.github.com/tonytony2020/1133f1cf57c7d649a08f58503770a9fe
+
+fork，coding，pull request :)
+
